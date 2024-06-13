@@ -1,8 +1,9 @@
+use anyhow::{bail, Result};
 use tch::nn::{Module, OptimizerConfig};
 use tch::vision::imagenet;
 use tch::{nn, vision, Device, Kind, Tensor};
 
-fn main() {
+fn main() -> Result<()> {
     // Download images of birds and drones from a kaggle dataset
     // https://www.kaggle.com/datasets/harshwalia/birds-vs-drone-dataset
 
@@ -11,14 +12,29 @@ fn main() {
 
     // Load the pretrianed ResNet18 model
     let mut vs = nn::VarStore::new(device);
-    let net = vision::resnet::resnet18(&vs.root(), tch::vision::imagenet::CLASS_COUNT);
+    let net = vision::resnet::resnet18_no_final_layer(&vs.root());
     vs.load(std::path::Path::new("./weights/resnet18.ot"))
         .unwrap();
 
-    let train_dir = "dataset/train";
-    let val_dir = "dataset/val";
-    let batch_size = 32;
-    let train_loader = imagenet::load_from_dir(std::path::Path::new("./dataset"));
-    dbg!(train_loader);
-    todo!()
+    // Pre-compute the final activations.
+    let dataset = imagenet::load_from_dir(std::path::Path::new("./dataset")).unwrap();
+    let train_images = tch::no_grad(|| dataset.train_images.apply_t(&net, false));
+    let test_images = tch::no_grad(|| dataset.test_images.apply_t(&net, false));
+
+    let vs = nn::VarStore::new(tch::Device::Cpu);
+    let linear = nn::linear(vs.root(), 512, dataset.labels, Default::default());
+    let mut sgd = nn::Sgd::default().build(&vs, 1e-3)?;
+
+    for epoch_idx in 1..1001 {
+        let predicted = train_images.apply(&linear);
+        let loss = predicted.cross_entropy_for_logits(&dataset.train_labels);
+        sgd.backward_step(&loss);
+
+        let test_accuracy = test_images
+            .apply(&linear)
+            .accuracy_for_logits(&dataset.test_labels);
+        println!("{} {:.2}%", epoch_idx, 100. * f64::try_from(test_accuracy)?);
+    }
+
+    Ok(())
 }
