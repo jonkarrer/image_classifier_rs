@@ -1,7 +1,7 @@
-use anyhow::{bail, Result};
-use tch::nn::{Module, OptimizerConfig};
+use anyhow::Result;
+use tch::nn::OptimizerConfig;
 use tch::vision::imagenet;
-use tch::{nn, vision, Device, Kind, Tensor};
+use tch::{nn, vision};
 
 fn main() -> Result<()> {
     // Download images of birds and drones from a kaggle dataset
@@ -35,6 +35,10 @@ fn main() -> Result<()> {
             .accuracy_for_logits(&dataset.test_labels);
         println!("{} {:.2}%", epoch_idx, 100. * f64::try_from(test_accuracy)?);
     }
+
+    // Save the model
+    vs.save(std::path::Path::new("./weights/resnet18_linear.ot"))?;
+    println!("Saved weights to ./weights/resnet18_linear.ot");
 
     Ok(())
 }

@@ -5,6 +5,4 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.86"
-serde = { version = "1.0.203", features = ["derive"] }
 tch = { version = "0.16.0", features = ["download-libtorch"] }
-ureq = { version = "2.9.7", features = ["json"] }
