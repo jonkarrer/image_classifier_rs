@@ -17,7 +17,7 @@ fn deploy() -> Result<(), Box<dyn std::error::Error>> {
     linear_vs.load("./weights/resnet18_linear.ot")?;
 
     // Process image
-    let image_path = "./dataset/train/bird/forest.jpeg";
+    let image_path = "./dataset/train/bird/singleBirdinsky340.jpeg";
     let image = imagenet::load_image_and_resize224(image_path)?;
     let image = image.unsqueeze(0); // Add batch dimension
     let image = image.to_device(device); // Ensure the image is on the same device as the model
