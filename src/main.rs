@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tch::nn::{FuncT, Linear, Module, ModuleT, OptimizerConfig};
-use tch::vision::{self, image, imagenet, resnet};
-use tch::{nn, Device, Kind, Tensor};
+use tch::vision::{self, imagenet, resnet};
+use tch::{nn, Device, Kind};
 
 fn deploy() -> Result<(), Box<dyn std::error::Error>> {
     let device = tch::Device::cuda_if_available();
@@ -17,7 +17,7 @@ fn deploy() -> Result<(), Box<dyn std::error::Error>> {
     linear_vs.load("./weights/resnet18_linear.ot")?;
 
     // Process image
-    let image_path = "./dataset/train/bird/singleBirdinsky340.jpeg";
+    let image_path = "./dataset/train/bird/chicken.jpeg";
     let image = imagenet::load_image_and_resize224(image_path)?;
     let image = image.unsqueeze(0); // Add batch dimension
     let image = image.to_device(device); // Ensure the image is on the same device as the model
@@ -26,12 +26,20 @@ fn deploy() -> Result<(), Box<dyn std::error::Error>> {
     let resnet_features = tch::no_grad(|| resnet18.forward_t(&image, false));
     let logits = tch::no_grad(|| linear.forward(&resnet_features));
 
-    let predicted_label = logits.argmax(-1, false);
+    let output = logits.softmax(-1, Kind::Float);
 
-    println!(
-        "Odds for bird: {:?}",
-        100. * f64::try_from(predicted_label)?
-    );
+    let (top_probs, top_idxs) = output.topk(2, -1, true, true);
+
+    let labels = vec!["drone", "bird"];
+
+    println!("I think..:");
+    for i in 0..2 {
+        let prob = top_probs.double_value(&[0, i]);
+        let idx = top_idxs.int64_value(&[0, i]) as usize;
+        if let Some(class_name) = labels.get(idx) {
+            println!("{:50} {:5.2}%", class_name, 100.0 * prob);
+        }
+    }
 
     Ok(())
 }
@@ -93,7 +101,7 @@ fn load_linear_model() -> Result<Linear> {
     Ok(linear)
 }
 
-fn pretrianed() -> Result<()> {
+fn load_pre_trianed_model() -> Result<()> {
     // Load the image file and resize it to the usual imagenet dimension of 224x224.
     let image =
         imagenet::load_image_and_resize224("dataset/train/bird/singleBirdinsky0.jpeg").unwrap();
